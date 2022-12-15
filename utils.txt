@@ -1,0 +1,3 @@
+compila: mpicc nome_programa
+
+mpirun -np 4 ./prog
