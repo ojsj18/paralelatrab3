@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  if (argc != 3)
+  if (argc < 3)
 	{
 		printf("usage: %s <nmsg> <tmsg> <Optional: bl|nbl>\n",argv[0]);
 		exit(0);
@@ -41,8 +41,9 @@ int main(int argc, char* argv[]) {
 		nMsg = atoi(argv[1]);
   	printf("<nmsg>: %ld \n",nMsg);
 
+    bloqueante =  0;
     if(argc == 4)
-      bloqueante =  0; strcmp(argv[3], "-nbl");
+       bloqueante = strcmp(argv[3], "-nbl");
 
 		if (nMsg%2 != 0)
 		{
@@ -85,20 +86,20 @@ int main(int argc, char* argv[]) {
   chrono_reset(&mpiTime);
 	chrono_start(&mpiTime);
 
-  if(!bloqueante){ // se == 0, nbloqueante
+  if(bloqueante != 0){ // se == 0, nbloqueante
       printf("NAO BLOQUEANTE\n");
       for(int i=0;i<nMsg/2;i++)
         if (rank == 0) {
-          MPI_Isend(ping, ni, MPI_LONG, 1, i, MPI_COMM_WORLD, &reqsSend);
-          MPI_Irecv(pong, ni, MPI_LONG, 1, i, MPI_COMM_WORLD, &reqsRec);
+          MPI_Isend(ping, ni, MPI_LONG, 1, 0, MPI_COMM_WORLD, &reqsSend);
+          MPI_Irecv(pong, ni, MPI_LONG, 1, 1, MPI_COMM_WORLD, &reqsRec);
 
-          MPI_Wait( &reqsRec, &status);
+          MPI_Waitall(2, &reqsRec, &status);
 
         } else if (rank == 1) {
-          MPI_Isend(pong, ni, MPI_LONG, 0, i, MPI_COMM_WORLD, &reqsSend);
-          MPI_Irecv(ping, ni, MPI_LONG, 0, i, MPI_COMM_WORLD, &reqsRec);
+          MPI_Isend(pong, ni, MPI_LONG, 0, 0, MPI_COMM_WORLD, &reqsSend);
+          MPI_Irecv(ping, ni, MPI_LONG, 0, 1, MPI_COMM_WORLD, &reqsRec);
 
-          MPI_Wait( &reqsRec, &status);
+          MPI_Waitall(2, &reqsRec, &status);
       }
   } else{         //se != 0 bloqueante
     printf("BLOQUEANTE\n");
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]) {
 
 
 	double mgb = ((nMsg * tMsg) / total_time_in_seconds)/ (1000*1000);
-	printf("Throughput: %ld MB/s\n", mgb);
+	printf("Throughput: %lf MB/s\n", mgb);
 
   MPI_Finalize();
 }
