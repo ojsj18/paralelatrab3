@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <mpi.h>
 
+#define DEBUG   1
+
 void main(int argc, char* argv[]) {
 
   int size, rank;
@@ -49,56 +51,59 @@ void main(int argc, char* argv[]) {
 
 	}
 
-  long *ping = (long *) malloc( nMsg*sizeof(long) );
-  long *pong = (long *) malloc( nMsg*sizeof(long) );
+  long *ping = (long *) malloc( ni*sizeof(long) );
+  long *pong = (long *) malloc( ni*sizeof(long) );
 
-  MPI_Request reqs[nMsg];//???
-	MPI_Status stats[nMsg];
+  MPI_Request reqsSend;
+  MPI_Request reqsRec;
+  MPI_Status status;
 
   if(size > 2){
     exit(0);
   }
   
-  if (rank == 0) {
-      elements = 1;
-      for(int i=0;i<nMsg/2;i++){
-        ping[i] = elements;
-        elements+= 1;
-      }
-    printf(" %ld %ld \n",nMsg, ni);
-    for(int i=0;i<nMsg/2;i+=ni){
-      MPI_Isend(&ping[i], ni, MPI_LONG, 1, 0, MPI_COMM_WORLD, &reqs[i]);
-      printf("ping: enviado a %d msg\n",i);
-      MPI_Irecv(&pong[i], ni, MPI_LONG, 1, 0, MPI_COMM_WORLD, &reqs[i+1]);
-      printf("ping: recebido a %d msg\n",i);
-    }
-      printf("vetor pong recebido: ");
-      for(int i = 0;i<nMsg/2;i++){
-        printf("%ld ",pong[i]);
-      }
-      printf("\n");
+  if (rank == 0)
+      for(int i=0;i<ni;i++) {
+        ping[i] = i+1;
+        pong[i] = 0;
+      }  
 
-  } else if (rank == 1) {
-      elements = (nMsg/2) + 1;
-      for(int i=0;i<nMsg/2;i++){
-        pong[i] = elements;
-        elements+= 1;
-      }
-      printf(" %ld %ld \n",nMsg, ni);
-      for(int i=0;i<nMsg/2;i+=ni){
-        MPI_Irecv(&ping[i], ni, MPI_LONG, 0, 1, MPI_COMM_WORLD, &reqs[i]);
+  else if (rank == 1)
+      for(int i=0;i<ni;i++) {
+            ping[i] = 0;
+            pong[i] = i+ni+1;
+      }   
+            
+  #if DEBUG
+        fprintf(stderr, "\nrank: %d Ping[ ", rank );
+        for(int i=0;i<ni;i++)
+             fprintf(stderr, "%ld ", ping[i] );
+        fprintf(stderr, " ]\n" );
 
-        printf("pong: recebido a %d msg\n",i);
-        MPI_Isend(&pong[i], ni, MPI_LONG, 0, 1, MPI_COMM_WORLD, &reqs[i+1]);
-
-        printf("pong: enviado a %d msg\n",i);
-      }
-      printf("vetor ping recebido: ");
-      for(int i = 0;i<nMsg/2;i++){
-        printf("%ld ",ping[i]);
-      }
-      printf("\n");
-  }
+        fprintf(stderr, "rank: %d Pong[ ", rank );
+        for(int i=0;i<ni;i++)
+             fprintf(stderr, "%ld ", pong[i] );
+        fprintf(stderr, " ]\n" );
+  #endif          
   
-  MPI_Finalize();    
+  for(int i=0;i<nMsg/2;i++)
+      
+      if (rank == 0) {
+        MPI_Isend(ping, ni, MPI_LONG, 1, i, MPI_COMM_WORLD, &reqsSend);
+        printf("rank %d enviou ping %d ao nodo %d\n", rank, i, 1);
+        MPI_Irecv(pong, ni, MPI_LONG, 1, i, MPI_COMM_WORLD, &reqsRec);
+        printf("rank %d requisitou recepcao de pong %d do nodo %d\n", rank, i, 1);
+
+        MPI_Wait( &reqsRec, &status);
+
+      } else if (rank == 1) {
+        MPI_Isend(pong, ni, MPI_LONG, 0, i, MPI_COMM_WORLD, &reqsSend);
+        printf("rank %d enviou ping %d ao nodo %d\n", rank, i, 0);
+        MPI_Irecv(ping, ni, MPI_LONG, 0, i, MPI_COMM_WORLD, &reqsRec);
+        printf("rank %d requisitou recepcao de pong %d do nodo %d\n",rank, i, 0);
+
+        MPI_Wait( &reqsRec, &status);
+    }
+
+  MPI_Finalize();
 }
