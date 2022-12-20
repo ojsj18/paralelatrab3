@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
 
   long msgS;
   long msgR;
-  int bloqueante;
+  int bloqueante = 0;
 
   MPI_Status stat;
 
@@ -40,7 +40,9 @@ int main(int argc, char* argv[]) {
     
 		nMsg = atoi(argv[1]);
   	printf("<nmsg>: %ld \n",nMsg);
-    bloqueante =  0; strcmp(argv[3], "-nbl");
+
+    if(argc == 4)
+      bloqueante =  0; strcmp(argv[3], "-nbl");
 
 		if (nMsg%2 != 0)
 		{
