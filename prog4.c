@@ -4,6 +4,75 @@
 #include <mpi.h>
 #include "chrono.c"
 
+void verificaVetores( long ping[], long pong[], int ni )
+{
+   static int twice = 0;
+   int ping_ok = 1;
+   int pong_ok = 1;
+   int i, rank;
+      
+   MPI_Comm_rank( MPI_COMM_WORLD, &rank );   
+   
+   if( twice == 0 ) {
+  
+      if (rank == 0) {
+      
+          for( i=0; i<ni; i++ ) {
+            if( ping[i] != i+1 ) { ping_ok = 0; break; }
+            if( pong[i] != 0   ) { pong_ok = 0; break; }
+          }
+          if( !ping_ok )
+             fprintf(stderr, 
+               "--------- rank 0, initial value of ping[%d] = %ld (wrong!)\n", i, ping[i] );
+          if( !pong_ok )
+             fprintf(stderr, 
+               "--------- rank 0, initial value of pong[%d] = %ld (wrong!)\n", i, pong[i] );
+          if( ping_ok && pong_ok )
+             fprintf(stderr, 
+               "--------- rank 0, initial value of ping and pong are OK\n" );
+
+      } else if (rank == 1) {
+      
+          for( i=0; i<ni; i++ ) {
+            if( ping[i] != 0      ) { ping_ok = 0; break; }
+            if( pong[i] != i+ni+1 ) { pong_ok = 0; break; }
+          }
+          if( !ping_ok )
+             fprintf(stderr, 
+               "--------- rank 1, initial value of ping[%d] = %ld (wrong!)\n", i, ping[i] );
+          if( !pong_ok )
+             fprintf(stderr, 
+               "--------- rank 1, initial value of pong[%d] = %ld (wrong!)\n", i, pong[i] );
+          if( ping_ok && pong_ok )
+             fprintf(stderr, 
+               "--------- rank 1, initial values of ping and pong are OK\n" );
+      }          
+   }   // end twice == 0
+   
+   if( twice == 1 ) {
+  
+          for( i=0; i<ni; i++ ) {
+            if( ping[i] != i+1      ) { ping_ok = 0; break; }
+            if( pong[i] != i+ni+1   ) { pong_ok = 0; break; }
+          }
+          if( !ping_ok )
+             fprintf(stderr, 
+               "--------- rank %d, FINAL value of ping[%d] = %ld (wrong!)\n", rank, i, ping[i] );
+          if( !pong_ok )
+             fprintf(stderr, 
+               "--------- rank %d, FINAL value of pong[%d] = %ld (wrong!)\n", rank, i, pong[i] );
+          if( ping_ok && pong_ok )
+             fprintf(stderr, 
+               "--------- rank %d, FINAL values of ping and pong are OK\n", rank );
+
+   }  // end twice == 1
+   
+   ++twice;
+   if( twice > 2 )
+      fprintf(stderr, 
+               "--------- rank %d, verificaVetores CALLED more than 2 times!!!\n", rank );     
+}          
+
 int main(int argc, char* argv[]) {
 
   chronometer_t mpiTime;
@@ -39,21 +108,24 @@ int main(int argc, char* argv[]) {
 	{
     
 		nMsg = atoi(argv[1]);
-  	printf("<nmsg>: %ld \n",nMsg);
+    if (rank == 0) 
+  	  printf("<nmsg>: %ld \n",nMsg);
 
-    bloqueante =  0;
+    bloqueante = 1;
     if(argc == 4)
-       bloqueante = strcmp(argv[3], "-nbl");
+       bloqueante = strcmp(argv[3], "-bl");
 
 		if (nMsg%2 != 0)
 		{
-			printf("<nmsg>: %ld (precisa ser um numero par!!)\n",nMsg);
+      if (rank == 0) 
+			  printf("<nmsg>: %ld (precisa ser um numero par!!)\n",nMsg);
 			exit(0);
 		}
     tMsg = atoi(argv[2]);
     if (tMsg%sizeof(long) != 0)
 		{
-			printf("<tmsg>: %ld (precisa ser um numero multiplo de 8!!)\n",tMsg);
+      if (rank == 0) 
+			  printf("<tmsg>: %ld (precisa ser um numero multiplo de 8!!)\n",tMsg);
 			exit(0);
 		}
     ni = tMsg/8;
@@ -63,9 +135,8 @@ int main(int argc, char* argv[]) {
   long *ping = (long *) malloc( ni*sizeof(long) );
   long *pong = (long *) malloc( ni*sizeof(long) );
 
-  MPI_Request reqsSend;
-  MPI_Request reqsRec;
-  MPI_Status status;
+	MPI_Request reqs[2];
+	MPI_Status status[2];
 
   if(size > 2){
     exit(0);
@@ -83,34 +154,39 @@ int main(int argc, char* argv[]) {
             pong[i] = i+ni+1;
       }           
   
+  verificaVetores(ping, pong, ni );
+  MPI_Barrier(MPI_COMM_WORLD);
+
   chrono_reset(&mpiTime);
 	chrono_start(&mpiTime);
 
   if(bloqueante != 0){ // se == 0, nbloqueante
-      printf("NAO BLOQUEANTE\n");
+      if (rank == 0) 
+        printf("NAO BLOQUEANTE\n");
       for(int i=0;i<nMsg/2;i++)
         if (rank == 0) {
-          MPI_Isend(ping, ni, MPI_LONG, 1, 0, MPI_COMM_WORLD, &reqsSend);
-          MPI_Irecv(pong, ni, MPI_LONG, 1, 1, MPI_COMM_WORLD, &reqsRec);
+          MPI_Isend(ping, ni, MPI_LONG, 1, 2, MPI_COMM_WORLD, &reqs[1]);
+          MPI_Irecv(pong, ni, MPI_LONG, 1, 1, MPI_COMM_WORLD, &reqs[0]);
 
-          MPI_Waitall(2, &reqsRec, &status);
+          MPI_Waitall(2, reqs, status);
 
         } else if (rank == 1) {
-          MPI_Isend(pong, ni, MPI_LONG, 0, 0, MPI_COMM_WORLD, &reqsSend);
-          MPI_Irecv(ping, ni, MPI_LONG, 0, 1, MPI_COMM_WORLD, &reqsRec);
+          MPI_Irecv(ping, ni, MPI_LONG, 0, 2, MPI_COMM_WORLD, &reqs[1]);
+          MPI_Isend(pong, ni, MPI_LONG, 0, 1, MPI_COMM_WORLD, &reqs[0]);
 
-          MPI_Waitall(2, &reqsRec, &status);
+          MPI_Waitall(2, reqs, status);
       }
-  } else{         //se != 0 bloqueante
-    printf("BLOQUEANTE\n");
+  } else{     
+    if (rank == 0) 
+      printf("BLOQUEANTE\n");
     for(int i=0;i<nMsg/2;i++)
         if (rank == 0) {
-          MPI_Send(ping, ni, MPI_LONG, 1, i, MPI_COMM_WORLD);
-          MPI_Recv(pong, ni, MPI_LONG, 1, i, MPI_COMM_WORLD, &status);
+          MPI_Send(ping, ni, MPI_LONG, 1, 1, MPI_COMM_WORLD);
+          MPI_Recv(pong, ni, MPI_LONG, 1, 1, MPI_COMM_WORLD, &status[0]);
 
         } else if (rank == 1) {
-          MPI_Send(pong, ni, MPI_LONG, 0, i, MPI_COMM_WORLD);
-          MPI_Recv(ping, ni, MPI_LONG, 0, i, MPI_COMM_WORLD, &status);
+          MPI_Send(pong, ni, MPI_LONG, 0, 1, MPI_COMM_WORLD);
+          MPI_Recv(ping, ni, MPI_LONG, 0, 1, MPI_COMM_WORLD, &status[0]);
         }
   }
 
@@ -118,16 +194,26 @@ int main(int argc, char* argv[]) {
 
   chrono_stop(&mpiTime);
 
+  for(int i=0; i<ni;i++)
+    printf("%ld ", ping[i]);
+  printf("\n");
+  for(int i=0; i<ni;i++)
+    printf("%ld ", pong[i]);
+  
+  verificaVetores(ping, pong, ni );
+
 	double total_time_in_seconds = (double)chrono_gettotal(&mpiTime) /
 								   ((double)1000 * 1000 * 1000);
-  printf("total: %lf vazao\n", total_time_in_seconds);
 
   double OPS = total_time_in_seconds / (nMsg) ;
-	printf("vazao: %lf vazao\n", OPS);
-
 
 	double mgb = ((nMsg * tMsg) / total_time_in_seconds)/ (1000*1000);
-	printf("Throughput: %lf MB/s\n", mgb);
+
+  if (rank == 0){
+    printf("Total Tempo: %lf s\n", total_time_in_seconds);
+	  printf("Vazao: %lf ops/s\n", OPS);
+	  printf("Throughput: %lf MB/s\n", mgb);
+  }
 
   MPI_Finalize();
 }
