@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
 
     bloqueante = 1;
     if(argc == 4)
-       bloqueante = strcmp(argv[3], "-bl");
+       bloqueante = strcmp(argv[3], "-nbl");
 
 		if (nMsg%2 != 0)
 		{
@@ -154,13 +154,13 @@ int main(int argc, char* argv[]) {
             pong[i] = i+ni+1;
       }           
   
-  verificaVetores(ping, pong, ni );
+  //verificaVetores(ping, pong, ni );
   MPI_Barrier(MPI_COMM_WORLD);
 
   chrono_reset(&mpiTime);
 	chrono_start(&mpiTime);
 
-  if(bloqueante != 0){ // se == 0, nbloqueante
+  if(bloqueante == 0){ // se == 0, nbloqueante
       if (rank == 0) 
         printf("NAO BLOQUEANTE\n");
       for(int i=0;i<nMsg/2;i++)
@@ -200,20 +200,22 @@ int main(int argc, char* argv[]) {
   for(int i=0; i<ni;i++)
     printf("%ld ", pong[i]);
   
-  verificaVetores(ping, pong, ni );
+  //verificaVetores(ping, pong, ni );
 
-	double total_time_in_seconds = (double)chrono_gettotal(&mpiTime) /
-								   ((double)1000 * 1000 * 1000);
+	if(rank == 0){
+		chrono_stop(&mpiTime);
+		chrono_reportTime(&mpiTime, "mpiTime");
 
-  double OPS = total_time_in_seconds / (nMsg) ;
-
-	double mgb = ((nMsg * tMsg) / total_time_in_seconds)/ (1000*1000);
-
-  if (rank == 0){
-    printf("Total Tempo: %lf s\n", total_time_in_seconds);
-	  printf("Vazao: %lf ops/s\n", OPS);
-	  printf("Throughput: %lf MB/s\n", mgb);
-  }
+		// calcular e imprimir a VAZAO (numero de operacoes/s)
+		double total_time_in_seconds = (double)chrono_gettotal(&mpiTime) /
+									((double)1000 * 1000 * 1000);
+	  double total_time_in_micro = (double)chrono_gettotal(&mpiTime) /
+									((double)1000);
+		printf("total_time_in_seconds: %lf s\n", total_time_in_seconds);
+		printf("Latencia: %lf us/nmsg\n", (total_time_in_micro / nMsg)/2);
+		double MBPS = ((double)(nMsg*tMsg) / ((double)total_time_in_seconds*1000*1000));
+		printf("Throughput: %lf MB/s\n", MBPS);
+	}
 
   MPI_Finalize();
 }
