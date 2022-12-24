@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
             pong[i] = i+ni+1;
       }           
   
-  //verificaVetores(ping, pong, ni );
+  verificaVetores(ping, pong, ni );
   MPI_Barrier(MPI_COMM_WORLD);
 
   chrono_reset(&mpiTime);
@@ -200,7 +200,7 @@ int main(int argc, char* argv[]) {
   for(int i=0; i<ni;i++)
     printf("%ld ", pong[i]);
   
-  //verificaVetores(ping, pong, ni );
+  verificaVetores(ping, pong, ni );
 
 	if(rank == 0){
 		chrono_stop(&mpiTime);
@@ -212,6 +212,7 @@ int main(int argc, char* argv[]) {
 	  double total_time_in_micro = (double)chrono_gettotal(&mpiTime) /
 									((double)1000);
 		printf("total_time_in_seconds: %lf s\n", total_time_in_seconds);
+    printf("total_time_in_micro: %lf s\n", total_time_in_micro);
 		printf("Latencia: %lf us/nmsg\n", (total_time_in_micro / nMsg)/2);
 		double MBPS = ((double)(nMsg*tMsg) / ((double)total_time_in_seconds*1000*1000));
 		printf("Throughput: %lf MB/s\n", MBPS);
